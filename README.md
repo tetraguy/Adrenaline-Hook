@@ -2,7 +2,7 @@
 
 <img width="635" height="409" alt="1" src="https://github.com/user-attachments/assets/5ff5d836-9741-4b2a-a19c-9086132bb182" />
 
-Adrenaline Hook is a utility developed to seamlessly integrate GamePass titles into AMD Adrenalin Software. Due to Microsoft’s DRM restrictions, manually adding GamePass executables to Adrenalin is typically not possible without complex and temporary workarounds that often break after game updates.
+Adrenaline Hook is a utility developed to seamlessly integrate UWP, and GamePass titles into AMD Adrenalin Software. Due to Microsoft’s DRM restrictions, manually adding GamePass executables to Adrenalin is typically not possible without complex and temporary workarounds that often break after game updates.
 
 Many GamePass games are not automatically detected by AMD Adrenalin, which prevents users from taking advantage of key AMD features like Frame Generation, Image Sharpening, and more. Adrenaline Hook eliminates this limitation.
 
