@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest></ApplicationManifest>
+    <AssemblyName>AdrenalineHook</AssemblyName>
+    <RootNamespace>AdrenalineHookWpf</RootNamespace>
+    <ApplicationIcon>Adrenaline Hook.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Adrenaline Hook.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\banner.png" />
+  </ItemGroup>
+
+</Project>

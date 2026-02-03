@@ -1,0 +1,17 @@
+<Window x:Class="AdrenalineHookWpf.Windows.HookedAppsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hooked Applications" Width="420" Height="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{Binding CountText}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+        <ListBox Grid.Row="1" ItemsSource="{Binding Titles}" />
+        <Button Grid.Row="2" Content="Close" Width="110" HorizontalAlignment="Center" Click="Close_Click" Margin="0,10,0,0"/>
+    </Grid>
+</Window>

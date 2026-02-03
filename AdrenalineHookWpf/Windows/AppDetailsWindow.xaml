@@ -1,0 +1,48 @@
+<Window x:Class="AdrenalineHookWpf.Windows.AppDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Application Details" Width="460" Height="360"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="80"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#FFF7F7F7" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+            <DockPanel>
+                <Image Width="64" Height="64" Stretch="Uniform" Source="{Binding Logo}" Margin="0,0,10,0"/>
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding Source}" Foreground="#FF666666"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Publisher:" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Publisher}" TextWrapping="Wrap"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Version:" FontWeight="SemiBold" Margin="0,6,0,0"/>
+        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Version}" Margin="0,6,0,0"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="Arch:" FontWeight="SemiBold" Margin="0,6,0,0"/>
+        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Architecture}" Margin="0,6,0,0"/>
+
+        <TextBlock Grid.Row="4" Grid.Column="0" Text="Exe:" FontWeight="SemiBold" Margin="0,6,0,0"/>
+        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ExePath}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+
+        <TextBlock Grid.Row="5" Grid.Column="0" Text="Install:" FontWeight="SemiBold" Margin="0,6,0,0" VerticalAlignment="Top"/>
+        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding InstallLocation}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+
+        <Button Grid.Row="6" Grid.ColumnSpan="2" Content="Close" Width="110" HorizontalAlignment="Center" Margin="0,14,0,0" Click="Close_Click"/>
+    </Grid>
+</Window>
