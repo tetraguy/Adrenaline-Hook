@@ -227,7 +227,13 @@ public sealed class UwpScanner
                     {
                         var found = FileSearch.FindFileByName(install, exeName);
                         if (!string.IsNullOrWhiteSpace(found))
+                        {
+                            // Talos2 has 'Talos2/Binaries/WinGDK/Talos2-WinGDK-Shipping.exe' as name which then fails to match the process when running.
+                            // canonicalize to the actual file on disk to ensure it matches the process path.
+                            found = Path.GetFullPath(found);
+
                             return found;
+                        }
                     }
                 }
             }
