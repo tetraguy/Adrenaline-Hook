@@ -163,10 +163,12 @@ public sealed class GmdbService
         var games = root?["games"] as JsonArray;
         if (root is null || games is null) return 0;
 
+        // Materialize to list first to avoid modifying collection during iteration
+        var gamesList = games.ToList();
         var kept = new JsonArray();
         int removed = 0;
 
-        foreach (var n in games)
+        foreach (var n in gamesList)
         {
             var title = n?["title"]?.GetValue<string>() ?? "";
             if (toRemove.Contains(title))
@@ -174,7 +176,10 @@ public sealed class GmdbService
                 removed++;
                 continue;
             }
-            kept.Add(n);
+            // Deep clone the node to avoid parent tracking issues
+            var clone = n?.DeepClone() as JsonObject;
+            if (clone is not null)
+                kept.Add(clone);
         }
 
         root["games"] = kept;
