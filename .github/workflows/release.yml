@@ -1,0 +1,63 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Publish x64
+        shell: pwsh
+        run: |
+          dotnet publish AdrenalineHookWpf/AdrenalineHookWpf.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o publish/win-x64
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & $iscc /DAppVersion=$env:VERSION /Odist installer\AdrenalineHook.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Adrenaline Hook ${{ github.ref_name }}
+          body: |
+            ## Adrenaline Hook ${{ github.ref_name }}
+
+            **x64 Windows installer — no .NET runtime required.**
+
+            ### Install
+            1. Download the `.exe` below and run it.
+            2. Launch **Adrenaline Hook** from the Start Menu or Desktop.
+
+            ---
+            *Original concept by [tetraguy](https://github.com/tetraguy/Adrenaline-Hook).*
+          files: dist/*.exe
