@@ -85,10 +85,13 @@ public static class SystemInfoService
 
         using var proc = new Process { StartInfo = psi };
         proc.Start();
-        var outText = proc.StandardOutput.ReadToEnd();
-        var errText = proc.StandardError.ReadToEnd();
+        // Read both streams concurrently to avoid deadlock when either buffer fills.
+        var outTask = proc.StandardOutput.ReadToEndAsync();
+        var errTask = proc.StandardError.ReadToEndAsync();
         proc.WaitForExit(5000);
-        return outText;
+        if (!proc.HasExited)
+            try { proc.Kill(entireProcessTree: true); } catch { }
+        return outTask.GetAwaiter().GetResult();
     }
 
     private static bool IsOnPath(string exe)

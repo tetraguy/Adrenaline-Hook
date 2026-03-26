@@ -33,6 +33,26 @@ Other Key Features Include:
 
 I hope you find this tool useful :)
 
+---
+
+## Credits
+
+This project is a fork of the original **Adrenaline Hook** by [tetraguy](https://github.com/tetraguy/Adrenaline-Hook).
+All credit for the original concept, design, and PowerShell implementation goes to them.
+
+This fork rewrites the tool as a native WPF (.NET 10) desktop application and adds the following improvements:
+
+- Rewrote from PowerShell script to a standalone WPF app (no PowerShell execution policy workarounds needed)
+- Fixed scanning loop — processes are now properly cancelled and don't pile up
+- Fixed pipe-buffer deadlock in process output reading
+- Fixed `JsonException` crash when parsing UWP package metadata
+- Upgraded to .NET 10
+- Added JSON validation in the database editor
+- Added **Refresh Paths** — automatically fixes hooked games that go missing after a game update
+- Added x64 installer (Inno Setup)
+
+If you find issues or want to contribute, please also consider reporting upstream to [tetraguy's original repo](https://github.com/tetraguy/Adrenaline-Hook).
+
 ## Run instructions:
 
 ⚠️ Important Disclaimer

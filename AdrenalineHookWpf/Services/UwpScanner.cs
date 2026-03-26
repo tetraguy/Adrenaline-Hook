@@ -1,10 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -22,14 +21,28 @@ namespace AdrenalineHookWpf.Services;
 /// This scanner avoids WinRT references by using PowerShell's Get-AppxPackage to enumerate packages,
 /// then resolves exe/logo paths by reading package files on disk.
 /// </summary>
+internal sealed class AppxPkg
+{
+    public string? Name { get; set; }
+    public string? InstallLocation { get; set; }
+    public string? Publisher { get; set; }
+    public string? Version { get; set; }
+    public string? Architecture { get; set; }
+}
+
+// Source-generated JSON context — no runtime reflection, trimming-safe.
+[JsonSerializable(typeof(AppxPkg[]))]
+[JsonSerializable(typeof(AppxPkg))]
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+internal sealed partial class AppxPkgContext : JsonSerializerContext { }
+
 public sealed class UwpScanner
 {
-    private sealed record AppxPkg(string? Name, string? InstallLocation, string? Publisher, string? Version, string? Architecture);
 
-    public Task<List<AppEntry>> ScanAsync(IProgress<string>? progress = null, CancellationToken ct = default)
+    public static Task<List<AppEntry>> ScanAsync(IProgress<string>? progress = null, CancellationToken ct = default)
         => Task.Run(() => ScanInternal(null, progress, ct), ct);
 
-    public Task<List<AppEntry>> SearchAsync(string term, IProgress<string>? progress = null, CancellationToken ct = default)
+    public static Task<List<AppEntry>> SearchAsync(string term, IProgress<string>? progress = null, CancellationToken ct = default)
         => Task.Run(() => ScanInternal(term, progress, ct), ct);
 
     private static List<AppEntry> ScanInternal(string? term, IProgress<string>? progress, CancellationToken ct)
@@ -37,7 +50,7 @@ public sealed class UwpScanner
         var results = new List<AppEntry>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var pkgs = GetAppxPackages(progress, ct);
+        var pkgs = GetAppxPackages(ct);
         foreach (var p in pkgs)
         {
             ct.ThrowIfCancellationRequested();
@@ -100,59 +113,40 @@ public sealed class UwpScanner
         return results.OrderBy(r => r.Name).ToList();
     }
 
-    private static List<AppxPkg> GetAppxPackages(IProgress<string>? progress, CancellationToken ct)
+    private static List<AppxPkg> GetAppxPackages(CancellationToken ct)
     {
         // Use JSON so we don't have to parse table output.
         // Keep the select small so output stays fast.
+        // Version is a System.Version object and Architecture is a ProcessorArchitecture enum —
+        // stringify both so ConvertTo-Json emits plain strings, not nested objects or integers.
         var ps =
             "$ErrorActionPreference='SilentlyContinue';" +
-            "Get-AppxPackage | Select-Object Name, InstallLocation, Publisher, Version, Architecture | ConvertTo-Json -Depth 3";
+            "Get-AppxPackage | Select-Object Name, InstallLocation, Publisher," +
+            "@{n='Version';e={$_.Version.ToString()}}," +
+            "@{n='Architecture';e={$_.Architecture.ToString()}} | ConvertTo-Json -Depth 2";
 
-        var output = RunPowerShell(ps, progress, ct);
+        var output = RunPowerShell(ps, ct);
         if (string.IsNullOrWhiteSpace(output))
-            return new List<AppxPkg>();
+            return [];
 
         try
         {
-            using var doc = JsonDocument.Parse(output);
-            var root = doc.RootElement;
+            // Normalize: PowerShell returns a single object (not array) when only one package found.
+            var trimmed = output.TrimStart();
+            if (trimmed.StartsWith('{'))
+                output = $"[{output}]";
 
-            var list = new List<AppxPkg>();
-
-            if (root.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in root.EnumerateArray())
-                    list.Add(ParsePkg(el));
-            }
-            else if (root.ValueKind == JsonValueKind.Object)
-            {
-                list.Add(ParsePkg(root));
-            }
-
-            return list;
+            var list = JsonSerializer.Deserialize(output, AppxPkgContext.Default.AppxPkgArray);
+            return list is null ? [] : [.. list];
         }
         catch (Exception ex)
         {
             Logger.Warn($"Failed to parse Get-AppxPackage JSON: {ex.Message}");
-            return new List<AppxPkg>();
+            return [];
         }
     }
 
-    private static AppxPkg ParsePkg(JsonElement el)
-    {
-        static string? Get(JsonElement e, string prop)
-            => e.TryGetProperty(prop, out var v) ? v.ToString() : null;
-
-        return new AppxPkg(
-            Name: Get(el, "Name"),
-            InstallLocation: Get(el, "InstallLocation"),
-            Publisher: Get(el, "Publisher"),
-            Version: Get(el, "Version"),
-            Architecture: Get(el, "Architecture")
-        );
-    }
-
-    private static string RunPowerShell(string script, IProgress<string>? progress, CancellationToken ct)
+    private static string RunPowerShell(string script, CancellationToken ct)
     {
         // Prefer pwsh if available, otherwise fallback to Windows PowerShell.
         var candidates = new[] { "pwsh.exe", "powershell.exe" };
@@ -174,14 +168,21 @@ public sealed class UwpScanner
         using var proc = new Process { StartInfo = psi };
         proc.Start();
 
-        var stdout = proc.StandardOutput.ReadToEndAsync();
-        var stderr = proc.StandardError.ReadToEndAsync();
+        // Read both streams concurrently to avoid pipe-buffer deadlock.
+        var stdout = proc.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderr = proc.StandardError.ReadToEndAsync(CancellationToken.None);
 
-        while (!proc.HasExited)
+        // Kill the process immediately on cancellation or 90-second timeout.
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        using var _ = linked.Token.Register(() =>
         {
-            ct.ThrowIfCancellationRequested();
-            Thread.Sleep(50);
-        }
+            try { proc.Kill(entireProcessTree: true); } catch { }
+        });
+
+        proc.WaitForExitAsync(linked.Token).GetAwaiter().GetResult();
+
+        ct.ThrowIfCancellationRequested();
 
         var outText = stdout.GetAwaiter().GetResult();
         var errText = stderr.GetAwaiter().GetResult();
@@ -231,9 +232,9 @@ public sealed class UwpScanner
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                Logger.Warn($"Failed to parse MicrosoftGame.config in '{install}': {ex.Message}");
             }
         }
 

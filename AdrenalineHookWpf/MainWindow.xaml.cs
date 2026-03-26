@@ -18,7 +18,6 @@ namespace AdrenalineHookWpf;
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
     private readonly GmdbService _gmdb = new();
-    private readonly UwpScanner _uwpScanner = new();
     private readonly InstalledSoftwareScanner _installedScanner = new();
 
     private CancellationTokenSource? _cts;
@@ -30,21 +29,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string StatusText
     {
         get => _statusText;
-        set { _statusText = value; OnPropertyChanged(nameof(StatusText)); }
+        set { _statusText = value; OnPropertyChanged(); }
     }
 
     private string _busyText = "Working…";
     public string BusyText
     {
         get => _busyText;
-        set { _busyText = value; OnPropertyChanged(nameof(BusyText)); }
+        set { _busyText = value; OnPropertyChanged(); }
     }
 
     private string _footerText = "";
     public string FooterText
     {
         get => _footerText;
-        set { _footerText = value; OnPropertyChanged(nameof(FooterText)); }
+        set { _footerText = value; OnPropertyChanged(); }
     }
 
     private readonly HashSet<string> _existingTitles = new(StringComparer.OrdinalIgnoreCase);
@@ -106,13 +105,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ---------- Scans ----------
     private async void ScanUwp_Click(object sender, RoutedEventArgs e)
-        => await RunScanAsync(async (progress, ct) => await _uwpScanner.ScanAsync(progress, ct), "Scanning UWP/GamePass apps…");
+    {
+        try { await RunScanAsync(async (progress, ct) => await UwpScanner.ScanAsync(progress, ct), "Scanning UWP/GamePass apps…"); }
+        catch (Exception ex) { Logger.Error("ScanUwp unhandled", ex); }
+    }
 
     private async void ScanInstalled_Click(object sender, RoutedEventArgs e)
-        => await RunScanAsync(async (progress, ct) => await _installedScanner.ScanAsync(progress, ct), "Scanning installed software…");
+    {
+        try { await RunScanAsync(async (progress, ct) => await _installedScanner.ScanAsync(progress, ct), "Scanning installed software…"); }
+        catch (Exception ex) { Logger.Error("ScanInstalled unhandled", ex); }
+    }
 
     private async void Search_Click(object sender, RoutedEventArgs e)
-        => await SearchAllAsync();
+    {
+        try { await SearchAllAsync(); }
+        catch (Exception ex) { Logger.Error("Search unhandled", ex); }
+    }
 
     private async Task SearchAllAsync()
     {
@@ -126,7 +134,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await RunScanAsync(async (progress, ct) =>
         {
             // Search both and merge
-            var uwpTask = _uwpScanner.SearchAsync(term, progress, ct);
+            var uwpTask = UwpScanner.SearchAsync(term, progress, ct);
             var instTask = _installedScanner.SearchAsync(term, progress, ct);
 
             await Task.WhenAll(uwpTask, instTask);
@@ -146,6 +154,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try
         {
             _cts?.Cancel();
+            _cts?.Dispose();
             _cts = new CancellationTokenSource();
 
             var ct = _cts.Token;
@@ -287,6 +296,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "Success",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
+    }
+
+    private async void RefreshPaths_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_gmdb.Exists)
+        {
+            MessageBox.Show("No gmdb.blb file found.", "Not Found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            ShowBusy("Scanning for current UWP/GamePass paths…");
+            _cts?.Cancel();
+            _cts?.Dispose();
+            _cts = new CancellationTokenSource();
+
+            var fresh = await UwpScanner.ScanAsync(
+                new Progress<string>(s => BusyText = s), _cts.Token);
+
+            ProcessUtils.KillProcessByName("RadeonSoftware");
+            var updated = _gmdb.RefreshPaths(fresh);
+            ReloadExistingTitles();
+
+            MessageBox.Show(
+                updated > 0
+                    ? $"Updated {updated} stale path(s).\n\nAMD Adrenaline will be restarted to pick up the changes."
+                    : "All hooked exe paths are still valid — nothing needed updating.",
+                "Refresh Paths",
+                MessageBoxButton.OK,
+                updated > 0 ? MessageBoxImage.Information : MessageBoxImage.Information);
+
+            if (updated > 0)
+                OpenAmdInternal();
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Refresh cancelled.";
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("RefreshPaths failed", ex);
+            MessageBox.Show($"Refresh failed:\n\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            HideBusy();
+        }
     }
 
     // ---------- Database windows ----------
@@ -502,12 +559,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // ---------- Search box enter ----------
     private async void SearchBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter)
-            await SearchAllAsync();
+        if (e.Key != Key.Enter) return;
+        try { await SearchAllAsync(); }
+        catch (Exception ex) { Logger.Error("Search unhandled", ex); }
     }
 
     // ---------- INotifyPropertyChanged ----------
     public event PropertyChangedEventHandler? PropertyChanged;
-    private void OnPropertyChanged(string propertyName)
+    private void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

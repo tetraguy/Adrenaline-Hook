@@ -154,6 +154,52 @@ public sealed class GmdbService
         return (added, skipped);
     }
 
+    /// <summary>
+    /// For each hooked entry whose exe_path no longer exists on disk, looks for a matching
+    /// title in <paramref name="freshApps"/> and updates exe_path (and image_info if it pointed
+    /// to the old exe) to the new path.  Returns the number of entries updated.
+    /// </summary>
+    public int RefreshPaths(IEnumerable<AppEntry> freshApps)
+    {
+        var lookup = freshApps
+            .Where(a => !string.IsNullOrWhiteSpace(a.Name) && !string.IsNullOrWhiteSpace(a.ExePath))
+            .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        if (lookup.Count == 0) return 0;
+
+        var root = LoadRootOrNull();
+        var games = root?["games"] as JsonArray;
+        if (root is null || games is null) return 0;
+
+        int updated = 0;
+        foreach (var node in games)
+        {
+            if (node is not JsonObject obj) continue;
+
+            var exePath = obj["exe_path"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(exePath) || File.Exists(exePath)) continue;
+
+            var title = obj["title"]?.GetValue<string>() ?? "";
+            if (!lookup.TryGetValue(title, out var fresh)) continue;
+
+            // Update exe_path
+            obj["exe_path"] = fresh.ExePath;
+
+            // Update image_info only if it was pointing at the old exe (not a logo file)
+            var imgInfo = obj["image_info"]?.GetValue<string>() ?? "";
+            if (string.Equals(imgInfo, exePath, StringComparison.OrdinalIgnoreCase))
+                obj["image_info"] = fresh.ImagePath ?? fresh.ExePath;
+
+            updated++;
+        }
+
+        if (updated > 0)
+            SaveRoot(root);
+
+        return updated;
+    }
+
     public int RemoveTitles(IEnumerable<string> titles)
     {
         var toRemove = titles.Where(t => !string.IsNullOrWhiteSpace(t)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -193,10 +239,19 @@ public sealed class GmdbService
         return File.ReadAllText(GmdbPath);
     }
 
+    public async Task<string> ReadRawTextAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(GmdbPath)) return "";
+        return await File.ReadAllTextAsync(GmdbPath, ct);
+    }
+
     public void SaveRawText(string text)
     {
         File.WriteAllText(GmdbPath, text);
     }
+
+    public Task SaveRawTextAsync(string text, CancellationToken ct = default)
+        => File.WriteAllTextAsync(GmdbPath, text, ct);
 
     private JsonObject LoadRootOrCreate()
     {
@@ -219,8 +274,7 @@ public sealed class GmdbService
         if (string.IsNullOrWhiteSpace(json))
             return null;
 
-        var node = JsonNode.Parse(json) as JsonObject;
-        return node;
+        return JsonNode.Parse(json) as JsonObject;
     }
 
     private void SaveRoot(JsonObject root)

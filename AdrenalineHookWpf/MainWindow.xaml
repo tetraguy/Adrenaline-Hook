@@ -91,6 +91,7 @@
                 <Button Content="Scan Installed Software" Click="ScanInstalled_Click"/>
                 <Button Content="Hook Program Manually" Click="HookManual_Click"/>
                 <Button Content="Remove Hooked Application(s)" Click="RemoveHooked_Click"/>
+                <Button Content="Refresh Paths (Fix After Updates)" Click="RefreshPaths_Click"/>
                 <Button Content="Open AMD Software" Click="OpenAmd_Click"/>
                 <Border Height="12" Background="Transparent"/>
                 <Button Content="Hook Selection(s)" Background="#FF63D5A7" Click="HookSelections_Click"/>

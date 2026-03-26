@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using System.Windows;
 using AdrenalineHookWpf.Services;
 
@@ -28,9 +29,21 @@ public partial class JsonEditorWindow : Window, INotifyPropertyChanged
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        var text = Editor.Text ?? "";
+
         try
         {
-            _gmdb.SaveRawText(Editor.Text ?? "");
+            JsonDocument.Parse(text);
+        }
+        catch (JsonException ex)
+        {
+            MessageBox.Show($"Invalid JSON — file not saved.\n\n{ex.Message}", "JSON Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        try
+        {
+            _gmdb.SaveRawText(text);
             MessageBox.Show("Saved successfully.", "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (System.Exception ex)
