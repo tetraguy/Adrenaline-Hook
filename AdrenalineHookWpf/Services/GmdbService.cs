@@ -174,7 +174,7 @@ public sealed class GmdbService
                 removed++;
                 continue;
             }
-            kept.Add(n);
+            kept.Add(n?.DeepClone());
         }
 
         root["games"] = kept;
